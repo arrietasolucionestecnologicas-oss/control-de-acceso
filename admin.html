@@ -1,0 +1,185 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Panel Admin — A.S.T.</title>
+<style>
+  body{font-family:system-ui,Arial,sans-serif;background:#0f172a;color:#e2e8f0;display:flex;align-items:center;justify-content:center;min-height:100vh;margin:0;padding:1.5rem}
+  .card{background:#1e293b;padding:2rem;border-radius:12px;width:100%;max-width:380px;box-shadow:0 10px 30px rgba(0,0,0,.3)}
+  h1{font-size:1.1rem;margin:0 0 1.25rem}
+  label{display:block;font-size:.85rem;margin-bottom:.25rem;color:#94a3b8}
+  input{width:100%;padding:.6rem;margin-bottom:1rem;border-radius:6px;border:1px solid #334155;background:#0f172a;color:#e2e8f0;box-sizing:border-box}
+  button{width:100%;padding:.7rem;border:none;border-radius:6px;background:#2563eb;color:#fff;font-weight:600;cursor:pointer}
+  button:disabled{opacity:.6;cursor:default}
+  .error{color:#f87171;font-size:.85rem;margin-bottom:1rem;min-height:1.2em}
+  .fila{display:flex;align-items:center;justify-content:space-between;background:#0f172a;border:1px solid #334155;border-radius:8px;padding:.85rem 1rem;margin-bottom:.6rem}
+  .fila .nombre{font-weight:600}
+  .estado{font-size:.8rem;padding:.2rem .6rem;border-radius:999px;font-weight:600}
+  .estado.on{background:#166534;color:#bbf7d0}
+  .estado.off{background:#7f1d1d;color:#fecaca}
+  .toggle{padding:.45rem .9rem;border-radius:6px;border:none;font-weight:600;cursor:pointer;font-size:.8rem}
+  .toggle.apagar{background:#dc2626;color:#fff}
+  .toggle.encender{background:#16a34a;color:#fff}
+  #panel{display:none}
+  .titulo-panel{font-size:.8rem;color:#64748b;margin:0 0 .75rem;text-transform:uppercase;letter-spacing:.05em}
+</style>
+</head>
+<body>
+  <div class="card">
+    <h1>🔒 Panel de Control — A.S.T.</h1>
+
+    <div id="loginView">
+      <div class="error" id="errorMsg"></div>
+      <label for="usuario">Usuario</label>
+      <input id="usuario" type="text" autocomplete="username">
+      <label for="password">Contraseña</label>
+      <input id="password" type="password" autocomplete="current-password">
+      <button id="btnLogin">Entrar</button>
+    </div>
+
+    <div id="panel">
+      <p class="titulo-panel">Estado de los servicios</p>
+      <div id="filas"></div>
+      <div class="error" id="errorPanel" style="margin-top:.5rem"></div>
+    </div>
+  </div>
+
+<script>
+  var CONTROL_ACCESO_URL = 'https://script.google.com/macros/s/AKfycby4K-qxW87hfd9Fy1wKHeyF8bic_Qo8clKfJ-ZuPg9zElNuc7XOe8qTgW8sUmJ9mnKjDA/exec';
+  var TOKEN_KEY = 'jlb_admin_token';
+  var NOMBRES = { GLOBAL: 'TODO (interruptor general)', PRODUCCION: 'Producción', PRUEBAS: 'App de Campo', ALMACEN: 'Almacén' };
+  var ORDEN = ['GLOBAL', 'PRODUCCION', 'PRUEBAS', 'ALMACEN'];
+
+  function getToken() {
+    try { return sessionStorage.getItem(TOKEN_KEY); } catch (e) { return null; }
+  }
+
+  function login() {
+    var usuario = document.getElementById('usuario').value.trim();
+    var password = document.getElementById('password').value;
+    var errorEl = document.getElementById('errorMsg');
+    errorEl.textContent = '';
+
+    if (!usuario || !password) {
+      errorEl.textContent = 'Completa usuario y contraseña.';
+      return;
+    }
+
+    var btn = document.getElementById('btnLogin');
+    btn.disabled = true;
+    btn.textContent = 'Verificando...';
+
+    var url = CONTROL_ACCESO_URL + '?action=login&usuario=' + encodeURIComponent(usuario) + '&password=' + encodeURIComponent(password);
+
+    fetch(url, { cache: 'no-store' })
+      .then(function (r) { return r.json(); })
+      .then(function (data) {
+        btn.disabled = false;
+        btn.textContent = 'Entrar';
+
+        if (!data.ok) {
+          errorEl.textContent = 'Usuario o contraseña incorrectos.';
+          return;
+        }
+        if (data.role !== 'Administrador') {
+          errorEl.textContent = 'Esta cuenta no tiene permisos de administrador.';
+          return;
+        }
+
+        try { sessionStorage.setItem(TOKEN_KEY, data.token); } catch (e) {}
+        mostrarPanel();
+      })
+      .catch(function () {
+        btn.disabled = false;
+        btn.textContent = 'Entrar';
+        errorEl.textContent = 'No se pudo contactar el servidor.';
+      });
+  }
+
+  function cargarEstado() {
+    var token = getToken();
+    fetch(CONTROL_ACCESO_URL + '?action=getStatus&token=' + encodeURIComponent(token), { cache: 'no-store' })
+      .then(function (r) { return r.json(); })
+      .then(function (data) {
+        if (!data.ok) {
+          document.getElementById('errorPanel').textContent = 'Sesión no válida, vuelve a iniciar sesión.';
+          try { sessionStorage.removeItem(TOKEN_KEY); } catch (e) {}
+          document.getElementById('panel').style.display = 'none';
+          document.getElementById('loginView').style.display = 'block';
+          return;
+        }
+        renderFilas(data.estado);
+      })
+      .catch(function () {
+        document.getElementById('errorPanel').textContent = 'No se pudo contactar el servidor.';
+      });
+  }
+
+  function renderFilas(estado) {
+    var cont = document.getElementById('filas');
+    cont.innerHTML = '';
+    ORDEN.forEach(function (appId) {
+      var activo = !!estado[appId];
+      var fila = document.createElement('div');
+      fila.className = 'fila';
+
+      var nombre = document.createElement('span');
+      nombre.className = 'nombre';
+      nombre.textContent = NOMBRES[appId] || appId;
+
+      var derecha = document.createElement('div');
+      derecha.style.display = 'flex';
+      derecha.style.alignItems = 'center';
+      derecha.style.gap = '.6rem';
+
+      var badge = document.createElement('span');
+      badge.className = 'estado ' + (activo ? 'on' : 'off');
+      badge.textContent = activo ? 'ACTIVO' : 'SUSPENDIDO';
+
+      var btn = document.createElement('button');
+      btn.className = 'toggle ' + (activo ? 'apagar' : 'encender');
+      btn.textContent = activo ? 'Suspender' : 'Activar';
+      btn.addEventListener('click', function () { cambiarEstado(appId, !activo); });
+
+      derecha.appendChild(badge);
+      derecha.appendChild(btn);
+      fila.appendChild(nombre);
+      fila.appendChild(derecha);
+      cont.appendChild(fila);
+    });
+  }
+
+  function cambiarEstado(appId, nuevoValor) {
+    var token = getToken();
+    var url = CONTROL_ACCESO_URL + '?action=setAppActive&token=' + encodeURIComponent(token) +
+      '&appId=' + encodeURIComponent(appId) + '&activo=' + (nuevoValor ? 'true' : 'false');
+
+    fetch(url, { cache: 'no-store' })
+      .then(function (r) { return r.json(); })
+      .then(function (data) {
+        if (!data.ok) {
+          document.getElementById('errorPanel').textContent = 'No se pudo cambiar el estado.';
+          return;
+        }
+        cargarEstado();
+      })
+      .catch(function () {
+        document.getElementById('errorPanel').textContent = 'No se pudo contactar el servidor.';
+      });
+  }
+
+  function mostrarPanel() {
+    document.getElementById('loginView').style.display = 'none';
+    document.getElementById('panel').style.display = 'block';
+    cargarEstado();
+  }
+
+  document.getElementById('btnLogin').addEventListener('click', login);
+
+  if (getToken()) {
+    mostrarPanel();
+  }
+</script>
+</body>
+</html>
