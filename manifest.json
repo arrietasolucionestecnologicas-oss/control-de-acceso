@@ -1,0 +1,15 @@
+{
+  "name": "Panel de Control A.S.T.",
+  "short_name": "AST Admin",
+  "description": "Panel para activar/suspender los servicios de los clientes",
+  "start_url": "./admin.html",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#0f172a",
+  "theme_color": "#0f172a",
+  "icons": [
+    { "src": "icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any" },
+    { "src": "icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "maskable" }
+  ]
+}
