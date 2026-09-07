@@ -31,6 +31,10 @@
   .toggle.encender{background:#16a34a;color:#fff}
   #panel{display:none}
   .titulo-panel{font-size:.8rem;color:#64748b;margin:0 0 .75rem;text-transform:uppercase;letter-spacing:.05em}
+  #toast{position:fixed;left:50%;bottom:1.5rem;transform:translateX(-50%) translateY(20px);background:#166534;color:#fff;padding:.7rem 1.25rem;border-radius:8px;font-size:.85rem;font-weight:600;box-shadow:0 8px 20px rgba(0,0,0,.4);opacity:0;pointer-events:none;transition:opacity .2s,transform .2s;z-index:999}
+  #toast.mostrar{opacity:1;transform:translateX(-50%) translateY(0)}
+  #toast.error{background:#7f1d1d}
+  .toggle.cargando{opacity:.6;cursor:default}
 </style>
 </head>
 <body>
@@ -52,6 +56,8 @@
       <div class="error" id="errorPanel" style="margin-top:.5rem"></div>
     </div>
   </div>
+
+  <div id="toast"></div>
 
 <script>
   var CONTROL_ACCESO_URL = 'https://script.google.com/macros/s/AKfycby4K-qxW87hfd9Fy1wKHeyF8bic_Qo8clKfJ-ZuPg9zElNuc7XOe8qTgW8sUmJ9mnKjDA/exec';
@@ -171,11 +177,28 @@
     btn.textContent = activo ? 'Suspender' : 'Activar';
   }
 
+  var toastTimeoutId = null;
+
+  function mostrarToast(texto, esError) {
+    var toast = document.getElementById('toast');
+    toast.textContent = texto;
+    toast.className = esError ? 'mostrar error' : 'mostrar';
+    if (toastTimeoutId) clearTimeout(toastTimeoutId);
+    toastTimeoutId = setTimeout(function () {
+      toast.className = toast.className.replace('mostrar', '').trim();
+    }, 2500);
+  }
+
   function cambiarEstado(appId, nuevoValor, fila) {
-    // Actualiza la pantalla de inmediato (optimista) — no espera al servidor para verse rápido.
+    // Actualiza la pantalla de inmediato (optimista) y marca "guardando..." mientras confirma el servidor.
     pintarFila(appId, nuevoValor, fila);
     estadoActual[appId] = nuevoValor;
     document.getElementById('errorPanel').textContent = '';
+
+    var btn = fila.querySelector('.toggle');
+    btn.disabled = true;
+    btn.classList.add('cargando');
+    mostrarToast((NOMBRES[appId] || appId) + ': guardando...', false);
 
     var token = getToken();
     var url = CONTROL_ACCESO_URL + '?action=setAppActive&token=' + encodeURIComponent(token) +
@@ -184,17 +207,24 @@
     fetch(url, { cache: 'no-store' })
       .then(function (r) { return r.json(); })
       .then(function (data) {
+        btn.disabled = false;
+        btn.classList.remove('cargando');
         if (!data.ok) {
-          // Falló de verdad -> revierte el cambio visual.
           pintarFila(appId, !nuevoValor, fila);
           estadoActual[appId] = !nuevoValor;
           document.getElementById('errorPanel').textContent = 'No se pudo cambiar el estado, intenta de nuevo.';
+          mostrarToast('✗ No se guardó: ' + (NOMBRES[appId] || appId), true);
+          return;
         }
+        mostrarToast('✓ ' + (NOMBRES[appId] || appId) + (nuevoValor ? ' activado' : ' suspendido'), false);
       })
       .catch(function () {
+        btn.disabled = false;
+        btn.classList.remove('cargando');
         pintarFila(appId, !nuevoValor, fila);
         estadoActual[appId] = !nuevoValor;
         document.getElementById('errorPanel').textContent = 'No se pudo contactar el servidor.';
+        mostrarToast('✗ Sin conexión con el servidor', true);
       });
   }
 
