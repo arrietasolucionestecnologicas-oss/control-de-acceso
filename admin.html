@@ -26,6 +26,10 @@
   .estado{font-size:.8rem;padding:.2rem .6rem;border-radius:999px;font-weight:600}
   .estado.on{background:#166534;color:#bbf7d0}
   .estado.off{background:#7f1d1d;color:#fecaca}
+  .estado.aviso-on{background:#78350f;color:#fde68a}
+  .toggle.quitar-aviso{background:#78350f;color:#fde68a}
+  .toggle.mostrar-aviso{background:#b45309;color:#fff}
+  .separador-panel{border:none;border-top:1px solid #334155;margin:1rem 0}
   .toggle{padding:.45rem .9rem;border-radius:6px;border:none;font-weight:600;cursor:pointer;font-size:.8rem}
   .toggle.apagar{background:#dc2626;color:#fff}
   .toggle.encender{background:#16a34a;color:#fff}
@@ -53,6 +57,18 @@
     <div id="panel">
       <p class="titulo-panel">Estado de los servicios</p>
       <div id="filas"></div>
+
+      <hr class="separador-panel">
+      <p class="titulo-panel">Frecuencia del aviso de pago</p>
+      <div class="fila">
+        <span class="nombre">Repetir cada</span>
+        <div style="display:flex;align-items:center;gap:.4rem">
+          <input id="intervaloMin" type="number" min="1" step="1" style="width:70px;margin:0;padding:.4rem .5rem" value="15">
+          <span style="font-size:.8rem;color:#94a3b8">min</span>
+          <button id="btnGuardarIntervalo" style="width:auto;padding:.45rem .9rem;font-size:.8rem">Guardar</button>
+        </div>
+      </div>
+
       <div class="error" id="errorPanel" style="margin-top:.5rem"></div>
     </div>
   </div>
@@ -62,8 +78,10 @@
 <script>
   var CONTROL_ACCESO_URL = 'https://script.google.com/macros/s/AKfycby4K-qxW87hfd9Fy1wKHeyF8bic_Qo8clKfJ-ZuPg9zElNuc7XOe8qTgW8sUmJ9mnKjDA/exec';
   var TOKEN_KEY = 'jlb_admin_token';
-  var NOMBRES = { GLOBAL: 'TODO (interruptor general)', PRODUCCION: 'Producción (JLB)', PRUEBAS: 'App de Campo (JLB)', ALMACEN: 'Almacén (JLB)', MYA_PRUEBAS: 'App Pruebas (M&A)' };
-  var ORDEN = ['GLOBAL', 'PRODUCCION', 'PRUEBAS', 'ALMACEN', 'MYA_PRUEBAS'];
+  var NOMBRES = { GLOBAL: 'TODO (interruptor general)', PRODUCCION: 'Producción (JLB)', PRUEBAS: 'App de Campo (JLB)', ALMACEN: 'Almacén (JLB)', MYA_PRUEBAS: 'App Pruebas (M&A)', AVISO_PAGO: '⚠️ Aviso de pago pendiente (JLB)' };
+  var ORDEN = ['GLOBAL', 'PRODUCCION', 'PRUEBAS', 'ALMACEN', 'MYA_PRUEBAS', 'AVISO_PAGO'];
+
+  function esAviso(appId) { return appId === 'AVISO_PAGO'; }
 
   function getToken() {
     try { return sessionStorage.getItem(TOKEN_KEY); } catch (e) { return null; }
@@ -152,12 +170,19 @@
       derecha.style.gap = '.6rem';
 
       var badge = document.createElement('span');
-      badge.className = 'estado ' + (activo ? 'on' : 'off');
-      badge.textContent = activo ? 'ACTIVO' : 'SUSPENDIDO';
-
       var btn = document.createElement('button');
-      btn.className = 'toggle ' + (activo ? 'apagar' : 'encender');
-      btn.textContent = activo ? 'Suspender' : 'Activar';
+
+      if (esAviso(appId)) {
+        badge.className = 'estado ' + (activo ? 'aviso-on' : 'off');
+        badge.textContent = activo ? 'MOSTRÁNDOSE' : 'OCULTO';
+        btn.className = 'toggle ' + (activo ? 'quitar-aviso' : 'mostrar-aviso');
+        btn.textContent = activo ? 'Quitar aviso' : 'Mostrar aviso';
+      } else {
+        badge.className = 'estado ' + (activo ? 'on' : 'off');
+        badge.textContent = activo ? 'ACTIVO' : 'SUSPENDIDO';
+        btn.className = 'toggle ' + (activo ? 'apagar' : 'encender');
+        btn.textContent = activo ? 'Suspender' : 'Activar';
+      }
       btn.addEventListener('click', function () { cambiarEstado(appId, !activo, fila); });
 
       derecha.appendChild(badge);
@@ -171,10 +196,17 @@
   function pintarFila(appId, activo, fila) {
     var badge = fila.querySelector('.estado');
     var btn = fila.querySelector('.toggle');
-    badge.className = 'estado ' + (activo ? 'on' : 'off');
-    badge.textContent = activo ? 'ACTIVO' : 'SUSPENDIDO';
-    btn.className = 'toggle ' + (activo ? 'apagar' : 'encender');
-    btn.textContent = activo ? 'Suspender' : 'Activar';
+    if (esAviso(appId)) {
+      badge.className = 'estado ' + (activo ? 'aviso-on' : 'off');
+      badge.textContent = activo ? 'MOSTRÁNDOSE' : 'OCULTO';
+      btn.className = 'toggle ' + (activo ? 'quitar-aviso' : 'mostrar-aviso');
+      btn.textContent = activo ? 'Quitar aviso' : 'Mostrar aviso';
+    } else {
+      badge.className = 'estado ' + (activo ? 'on' : 'off');
+      badge.textContent = activo ? 'ACTIVO' : 'SUSPENDIDO';
+      btn.className = 'toggle ' + (activo ? 'apagar' : 'encender');
+      btn.textContent = activo ? 'Suspender' : 'Activar';
+    }
   }
 
   var toastTimeoutId = null;
@@ -228,13 +260,54 @@
       });
   }
 
+  function cargarIntervalo() {
+    var token = getToken();
+    var url = CONTROL_ACCESO_URL + '?action=getConfigValue&token=' + encodeURIComponent(token) +
+      '&nombre=AVISO_PAGO_INTERVALO_MIN&porDefecto=15';
+    fetch(url, { cache: 'no-store' })
+      .then(function (r) { return r.json(); })
+      .then(function (data) {
+        if (data.ok) document.getElementById('intervaloMin').value = data.valor;
+      })
+      .catch(function () {});
+  }
+
+  function guardarIntervalo() {
+    var minutos = parseFloat(document.getElementById('intervaloMin').value);
+    if (!minutos || minutos < 1) {
+      mostrarToast('✗ Pon un número de minutos válido', true);
+      return;
+    }
+    var btn = document.getElementById('btnGuardarIntervalo');
+    btn.disabled = true;
+    var token = getToken();
+    var url = CONTROL_ACCESO_URL + '?action=setConfigValue&token=' + encodeURIComponent(token) +
+      '&nombre=AVISO_PAGO_INTERVALO_MIN&valor=' + encodeURIComponent(minutos);
+    fetch(url, { cache: 'no-store' })
+      .then(function (r) { return r.json(); })
+      .then(function (data) {
+        btn.disabled = false;
+        if (!data.ok) {
+          mostrarToast('✗ No se pudo guardar el intervalo', true);
+          return;
+        }
+        mostrarToast('✓ Aviso ajustado a cada ' + minutos + ' min', false);
+      })
+      .catch(function () {
+        btn.disabled = false;
+        mostrarToast('✗ Sin conexión con el servidor', true);
+      });
+  }
+
   function mostrarPanel() {
     document.getElementById('loginView').style.display = 'none';
     document.getElementById('panel').style.display = 'block';
     cargarEstado();
+    cargarIntervalo();
   }
 
   document.getElementById('btnLogin').addEventListener('click', login);
+  document.getElementById('btnGuardarIntervalo').addEventListener('click', guardarIntervalo);
 
   if (getToken()) {
     mostrarPanel();
