@@ -59,7 +59,7 @@
       <div id="filas"></div>
 
       <hr class="separador-panel">
-      <p class="titulo-panel">Frecuencia del aviso de pago</p>
+      <p class="titulo-panel">Aviso: del 25 al fin de mes, repetido cada… · El día 1 suspende solo</p>
       <div class="fila">
         <span class="nombre">Repetir cada</span>
         <div style="display:flex;align-items:center;gap:.4rem">
@@ -78,7 +78,7 @@
 <script>
   var CONTROL_ACCESO_URL = 'https://script.google.com/macros/s/AKfycby4K-qxW87hfd9Fy1wKHeyF8bic_Qo8clKfJ-ZuPg9zElNuc7XOe8qTgW8sUmJ9mnKjDA/exec';
   var TOKEN_KEY = 'jlb_admin_token';
-  var NOMBRES = { GLOBAL: 'TODO (interruptor general)', PRODUCCION: 'Producción (JLB)', PRUEBAS: 'App de Campo (JLB)', ALMACEN: 'Almacén (JLB)', MYA_PRUEBAS: 'App Pruebas (M&A)', AVISO_PAGO: '⚠️ Aviso de pago pendiente (JLB)' };
+  var NOMBRES = { GLOBAL: 'TODO (interruptor general)', PRODUCCION: 'Producción (JLB)', PRUEBAS: 'App de Campo (JLB)', ALMACEN: 'Almacén (JLB)', MYA_PRUEBAS: 'App Pruebas (M&A)', AVISO_PAGO: '⚠️ Cobro automático (JLB)' };
   var ORDEN = ['GLOBAL', 'PRODUCCION', 'PRUEBAS', 'ALMACEN', 'MYA_PRUEBAS', 'AVISO_PAGO'];
 
   function esAviso(appId) { return appId === 'AVISO_PAGO'; }
@@ -174,9 +174,9 @@
 
       if (esAviso(appId)) {
         badge.className = 'estado ' + (activo ? 'aviso-on' : 'off');
-        badge.textContent = activo ? 'MOSTRÁNDOSE' : 'OCULTO';
+        badge.textContent = activo ? 'COBRO ACTIVO' : 'APAGADO';
         btn.className = 'toggle ' + (activo ? 'quitar-aviso' : 'mostrar-aviso');
-        btn.textContent = activo ? 'Quitar aviso' : 'Mostrar aviso';
+        btn.textContent = activo ? 'Apagar cobro' : 'Activar cobro';
       } else {
         badge.className = 'estado ' + (activo ? 'on' : 'off');
         badge.textContent = activo ? 'ACTIVO' : 'SUSPENDIDO';
@@ -198,9 +198,9 @@
     var btn = fila.querySelector('.toggle');
     if (esAviso(appId)) {
       badge.className = 'estado ' + (activo ? 'aviso-on' : 'off');
-      badge.textContent = activo ? 'MOSTRÁNDOSE' : 'OCULTO';
+      badge.textContent = activo ? 'COBRO ACTIVO' : 'APAGADO';
       btn.className = 'toggle ' + (activo ? 'quitar-aviso' : 'mostrar-aviso');
-      btn.textContent = activo ? 'Quitar aviso' : 'Mostrar aviso';
+      btn.textContent = activo ? 'Apagar cobro' : 'Activar cobro';
     } else {
       badge.className = 'estado ' + (activo ? 'on' : 'off');
       badge.textContent = activo ? 'ACTIVO' : 'SUSPENDIDO';
@@ -248,7 +248,7 @@
           mostrarToast('✗ No se guardó: ' + (NOMBRES[appId] || appId), true);
           return;
         }
-        mostrarToast('✓ ' + (NOMBRES[appId] || appId) + (nuevoValor ? ' activado' : ' suspendido'), false);
+        mostrarToast('✓ ' + (NOMBRES[appId] || appId) + (nuevoValor ? ' activado' : (appId === 'AVISO_PAGO' ? ' apagado' : ' suspendido')), false);
       })
       .catch(function () {
         btn.disabled = false;
